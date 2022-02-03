@@ -1,0 +1,23 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-user
+      author: Anna
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: username
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+      -rollback:
+        -dropTable:
+          tableName: users

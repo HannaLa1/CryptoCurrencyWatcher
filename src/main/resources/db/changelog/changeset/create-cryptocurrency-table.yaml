@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-cryptocurrency
+      author: Anna
+      changes:
+        - createTable:
+            tableName: cryptocurrencies
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: symbol
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price
+                  type: double(24,12)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_user_id
+                    referencedTableName: users
+                    referencedColumnNames: id
+                    deleteCascade: true
+      -rollback:
+        -dropTable:
+          tableName: cryptocurrencies
