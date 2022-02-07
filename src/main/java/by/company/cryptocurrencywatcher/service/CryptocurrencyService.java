@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.decimal4j.util.DoubleRounder;
-import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -18,7 +17,7 @@ import org.springframework.web.client.RestTemplate;
 import javax.transaction.Transactional;
 import java.util.List;
 
-import static by.company.cryptocurrencywatcher.constant.RequestURL.*;
+import static by.company.cryptocurrencywatcher.constant.RequestURL.TICKER_URL_ALL;
 
 @Service
 @Slf4j
@@ -51,45 +50,23 @@ public class CryptocurrencyService {
 
     @Scheduled(fixedRateString = "${request.timeout}")
     @Transactional
-    public void getCurrentPriceBTC() {
-        var response = restTemplate.getForEntity(TICKER_URL_BTC, String.class);
-        List<Cryptocurrency> cryptocurrencies = cryptocurrencyRepository.getAllBySymbol("BTC");
+    public void getCurrentPrice() throws JsonProcessingException {
+        var response = restTemplate.getForEntity(TICKER_URL_ALL, String.class);
+        JsonNode root = new ObjectMapper().readTree(response.getBody());
+        var symbols = root.findParent("data").findValuesAsText("symbol");
+        int order = 0;
 
-        if (cryptocurrencies.isEmpty()){
-            throw new CryptocurrencyNotFoundException("No cryptocurrencies found!");
+        for (String symbol : symbols) {
+            List<Cryptocurrency> cryptocurrencies = cryptocurrencyRepository.getAllBySymbol(symbol);
+
+            if (cryptocurrencies.isEmpty()){
+                throw new CryptocurrencyNotFoundException("No cryptocurrencies found!");
+            }
+
+            schedule(root, cryptocurrencies, symbol, order);
+
+            order++;
         }
-
-        schedule(response, cryptocurrencies);
-    }
-
-    @Scheduled(fixedRateString = "${request.timeout}")
-    @Transactional
-    public void getCurrentPriceETH() {
-        var response = restTemplate.getForEntity(TICKER_URL_ETH, String.class);
-        List<Cryptocurrency> cryptocurrencies = cryptocurrencyRepository.getAllBySymbol("ETH");
-
-        if (cryptocurrencies.isEmpty()){
-            throw new CryptocurrencyNotFoundException("No cryptocurrencies found!");
-        }
-
-        schedule(response, cryptocurrencies);
-    }
-
-    @Scheduled(fixedRateString = "${request.timeout}")
-    @Transactional
-    public void getCurrentPriceSOL() {
-        var response = restTemplate.getForEntity(TICKER_URL_SOL, String.class);
-        List<Cryptocurrency> cryptocurrencies = cryptocurrencyRepository.getAllBySymbol("SOL");
-
-        if (cryptocurrencies.isEmpty()){
-            throw new CryptocurrencyNotFoundException("No cryptocurrencies found!");
-        }
-
-        schedule(response, cryptocurrencies);
-    }
-
-    private boolean existBySymbol(String symbol) {
-        return cryptocurrencyRepository.existsBySymbol(symbol);
     }
 
     private double percent(double price1, double price2){
@@ -104,24 +81,19 @@ public class CryptocurrencyService {
         return DoubleRounder.round(percent, 3);
     }
 
-    private void schedule(ResponseEntity<String> response, List<Cryptocurrency> cryptocurrencies){
-        try {
-            JsonNode root = new ObjectMapper().readTree(response.getBody());
-            double price_usd = Double.parseDouble(root.findPath("price_usd").asText());
-            String symbol = root.findPath("symbol").asText();
+    private void schedule(JsonNode root, List<Cryptocurrency> cryptocurrencies, String symbol, int order){
+        double price_usd = Double.parseDouble(root.findParent("data").findValuesAsText("price_usd").get(order));
 
-            for (Cryptocurrency cryptocurrency : cryptocurrencies) {
-                double percent = percent(cryptocurrency.getPrice(), price_usd);
+        for (Cryptocurrency cryptocurrency : cryptocurrencies) {
+            double percent = percent(cryptocurrency.getPrice(), price_usd);
 
-                if (percent > 1) {
-                    log.warn("Symbol : {},  username : {}, percentage of price : {} %", symbol, cryptocurrency.getUser().getUsername(), percent);
-                }
-
-                cryptocurrencyRepository.saveCurrentPrice(price_usd, symbol);
+            if (percent > 1) {
+                log.warn("Symbol : {},  username : {}, percentage of price : {} %", symbol, cryptocurrency.getUser().getUsername(), percent);
             }
-            log.info("Symbol : {}, current price : {} $", symbol, price_usd);
 
-        } catch (JsonProcessingException ignore) {
+            cryptocurrencyRepository.saveCurrentPrice(price_usd, symbol);
         }
+
+        log.info("Symbol : {}, current price : {} $", symbol, price_usd);
     }
 }

@@ -1,5 +1,6 @@
 package by.company.cryptocurrencywatcher.rest;
 
+import by.company.cryptocurrencywatcher.exception.CryptocurrencyNotFoundException;
 import by.company.cryptocurrencywatcher.exception.ErrorMessage;
 import by.company.cryptocurrencywatcher.exception.SymbolNotFoundException;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,18 @@ import java.util.Date;
 public class ExceptionHandlerController extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(SymbolNotFoundException.class)
-    public ResponseEntity<ErrorMessage> resourceNotFoundException(SymbolNotFoundException ex, WebRequest request) {
+    public ResponseEntity<ErrorMessage> symbolNotFoundException(SymbolNotFoundException ex, WebRequest request) {
+        ErrorMessage message = new ErrorMessage(
+                HttpStatus.NOT_FOUND.value(),
+                new Date(),
+                ex.getMessage(),
+                request.getDescription(false));
+
+        return new ResponseEntity<>(message, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(CryptocurrencyNotFoundException.class)
+    public ResponseEntity<ErrorMessage> resourceNotFoundException(CryptocurrencyNotFoundException ex, WebRequest request) {
         ErrorMessage message = new ErrorMessage(
                 HttpStatus.NOT_FOUND.value(),
                 new Date(),
